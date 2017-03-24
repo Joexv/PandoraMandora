@@ -1,5 +1,4 @@
 ﻿using System;
-using PandoraMandora;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -26,6 +25,7 @@ namespace PandoraMandora
 
         private void Form1_Load(object sender, EventArgs e)
         {
+            madHax.GUIConsoleWriter();
             madHax.readIP();
 
             #region Station Buttons
@@ -59,8 +59,7 @@ namespace PandoraMandora
             #endregion Station Buttons
 
             label1.Text = "Now Playing" + Environment.NewLine + madHax.resultSSH("media info", false);
-            SongTimer.RunWorkerAsync();
-            
+            SongTimer.RunWorkerAsync();           
         }
 
         #region Tool Strip Label
@@ -73,11 +72,7 @@ namespace PandoraMandora
 
         private void toolStripStatusLabel1_TextChanged(object sender, EventArgs e)
         {
-            if(toolStripStatusLabel1.Text != "....")
-            {
-                RevertLabel.CancelAsync();
-                RevertLabel.RunWorkerAsync();
-            }
+
         }
         #endregion
 
@@ -136,21 +131,29 @@ namespace PandoraMandora
         #region Settings Page
         private void button13_Click(object sender, EventArgs e)
         {
-            Process.Start(Application.StartupPath + @"Configuration.ini");
+            Process.Start(Application.StartupPath + @"\Configuration.ini");
         }
 
         private void button14_Click(object sender, EventArgs e)
         {
+            SongTimer.CancelAsync();
             this.Hide();
             this.ShowInTaskbar = false;
-            Form2 frm = new Form2(this);
+            Form2 f2 = new Form2();          
             try
             {
-                frm.Show();
+                f2.Show();
             }
             catch
             {
-                frm.Activate();
+                try
+                {
+                    f2.Activate();
+                }
+                catch
+                {
+                    MessageBox.Show("The Fuck?");
+                }
             }
         }
 
@@ -280,7 +283,7 @@ namespace PandoraMandora
 
         private void button8_Click(object sender, EventArgs e)
         {
-            Seconds = 3;
+            Seconds = 1;
             toolStripStatusLabel1.Text = "Muting...";
             madHax.mobileSSH("media vol0");
         }
@@ -294,21 +297,21 @@ namespace PandoraMandora
 
         private void button12_Click(object sender, EventArgs e)
         {
-            Seconds = 3;
+            Seconds = 2;
             toolStripStatusLabel1.Text = "Low...";
             madHax.mobileSSH("media vol2");
         }
 
         private void button11_Click(object sender, EventArgs e)
         {
-            Seconds = 3;
+            Seconds = 2;
             toolStripStatusLabel1.Text = "Mid...";
             madHax.mobileSSH("media vol8");
         }
 
         private void button10_Click(object sender, EventArgs e)
         {
-            Seconds = 3;
+            Seconds = 2;
             toolStripStatusLabel1.Text = "High...";
             madHax.mobileSSH("media vol14");
         }
@@ -326,9 +329,14 @@ namespace PandoraMandora
 
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
-            Form2 frm = new Form2(this);
+            Form2 frm = new Form2();
             frm.Close();
             Application.Exit();
+        }
+
+        private void toolStripStatusLabel1_Click(object sender, EventArgs e)
+        {
+
         }
     }
 }

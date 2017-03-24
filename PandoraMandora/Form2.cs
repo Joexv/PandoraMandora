@@ -5,27 +5,32 @@ using System;
 using System.Drawing;
 using System.Threading;
 using System.Windows.Forms;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace PandoraMandora
 {
     public partial class Form2 : Form
     {
-        private static string ipAddress;
-        private static string password;
-        private static string username;
-        private static int Volume = 0;
+        public static string ipAddress;
+        public static string password;
+        public static string username;
+
         bool ManualMode = false;
 
-        private Form opener;
         sshHandler madHax = new sshHandler();
 
         public const int HT_CAPTION = 0x2;
         public const int WM_NCLBUTTONDOWN = 0xA1;
 
-        public Form2(Form parentForm)
+        public Form2()
         {
             InitializeComponent();
-            opener = parentForm;
         }
 
         [System.Runtime.InteropServices.DllImportAttribute("user32.dll")]
@@ -86,6 +91,7 @@ namespace PandoraMandora
 
         private void button5_Click(object sender, EventArgs e)
         {
+            backgroundWorker1.CancelAsync();
             this.ShowInTaskbar = false;
             Form1 frm = new Form1();
             frm.Show();

@@ -8,6 +8,8 @@ using System.Windows.Forms;
 using IniParser.Model;
 using IniParser;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
 
 namespace PandoraMandora
 {
@@ -19,6 +21,7 @@ namespace PandoraMandora
 
         public void mobileSSH(string Command)
         {
+            Cursor.Current = Cursors.WaitCursor;
             try
             {
                 using (var client = new SshClient(ipAddress, "mobile", "alpine"))
@@ -32,10 +35,12 @@ namespace PandoraMandora
             {
                 MessageBox.Show("Error on connecting to ssh");
             }
+            Cursor.Current = Cursors.Default;
         }
 
         public void rootSSH(string Command)
         {
+            Cursor.Current = Cursors.WaitCursor;
             try
             {
                 using (var client = new SshClient(ipAddress, "root", password))
@@ -49,11 +54,12 @@ namespace PandoraMandora
             {
                 MessageBox.Show("Error on connecting to ssh");
             }
+            Cursor.Current = Cursors.Default;
         }
 
         public string resultSSH(string Command, bool Root)
         {
-            readIP();
+            Cursor.Current = Cursors.WaitCursor;
             string Result = "null";
             try
             {
@@ -82,6 +88,7 @@ namespace PandoraMandora
             {
                 MessageBox.Show("Error on connecting to ssh");
             }
+            Cursor.Current = Cursors.Default;
             return Result;
         }
 
@@ -133,27 +140,31 @@ namespace PandoraMandora
 
         public void readIP()
         {
+            Cursor.Current = Cursors.WaitCursor;
+            WriteLine("Checking to see if Config file exists...");
             if (!File.Exists(Application.StartupPath + @"/Configuration.ini"))
             {
+                WriteLine("it Doesn't creating one...");
                 using (StreamWriter sw = File.CreateText(Application.StartupPath + @"/Configuration.ini"))
                 {
                 }
+                WriteLine("Created. Adding Temporary content...");
                 var parser = new FileIniDataParser();
                 IniData data = parser.ReadFile("Configuration.ini");
-
                 string Temp = "Temp";
-                data["Config"]["username"] = Temp;
-                parser.WriteFile("Configuration.ini", data);
-
-                data["Config"]["password"] = Temp;
-                parser.WriteFile("Configuration.ini", data);
-
                 data["Config"]["IP"] = Temp;
+                parser.WriteFile("Configuration.ini", data);
+
+                data["Config"]["username"] = "root";
+                parser.WriteFile("Configuration.ini", data);
+
+                data["Config"]["password"] = "alpine";
                 parser.WriteFile("Configuration.ini", data);
 
                 ipAddress = data["Config"]["IP"];
                 username = data["Config"]["username"];
                 password = data["Config"]["password"];
+                MessageBox.Show("The SSH wont connect as it has no IP address or usernames to work off. So restart the program after changing it.");
             }
             else
             {
@@ -164,6 +175,33 @@ namespace PandoraMandora
                 username = data["Config"]["username"];
                 password = data["Config"]["password"];
             }
+            Cursor.Current = Cursors.Default;
+        }
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+        private static extern bool AttachConsole(int dwProcessId);
+
+        private const int ATTACH_PARENT_PROCESS = -1;
+
+        StreamWriter _stdOutWriter;
+
+        // this must be called early in the program
+        public void GUIConsoleWriter()
+        {
+            // this needs to happen before attachconsole.
+            // If the output is not redirected we still get a valid stream but it doesn't appear to write anywhere
+            // I guess it probably does write somewhere, but nowhere I can find out about
+            var stdout = Console.OpenStandardOutput();
+            _stdOutWriter = new StreamWriter(stdout);
+            _stdOutWriter.AutoFlush = true;
+
+            AttachConsole(ATTACH_PARENT_PROCESS);
+        }
+
+        public void WriteLine(string line)
+        {
+            _stdOutWriter.WriteLine(line);
+            Console.WriteLine(line);
         }
 
         public string RemoveLineEndings(string value)
@@ -177,6 +215,5 @@ namespace PandoraMandora
 
             return value.Replace("\r\n", string.Empty).Replace("\n", string.Empty).Replace("\r", string.Empty).Replace(lineSeparator, string.Empty).Replace(paragraphSeparator, string.Empty);
         }
-
     }
 }

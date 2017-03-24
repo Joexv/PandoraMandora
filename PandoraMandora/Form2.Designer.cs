@@ -159,7 +159,7 @@
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "Form2";
-            this.Text = "Form2";
+            this.Text = "                                                                            ";
             this.TopMost = true;
             this.TransparencyKey = System.Drawing.Color.Salmon;
             this.Load += new System.EventHandler(this.Form2_Load);
