@@ -18,13 +18,15 @@ namespace PandoraMandora
         public static string ipAddress;
         public static string password;
         public static string username;
+        public static string MobileUser;
+        public static string MobilePass;
 
         public void mobileSSH(string Command)
         {
             Cursor.Current = Cursors.WaitCursor;
             try
             {
-                using (var client = new SshClient(ipAddress, "mobile", "alpine"))
+                using (var client = new SshClient(ipAddress, MobileUser, MobilePass))
                 {
                     client.Connect();
                     client.RunCommand(Command);
@@ -33,7 +35,6 @@ namespace PandoraMandora
             }
             catch
             {
-                MessageBox.Show("Error on connecting to ssh");
             }
             Cursor.Current = Cursors.Default;
         }
@@ -52,7 +53,6 @@ namespace PandoraMandora
             }
             catch
             {
-                MessageBox.Show("Error on connecting to ssh");
             }
             Cursor.Current = Cursors.Default;
         }
@@ -75,7 +75,7 @@ namespace PandoraMandora
                 }
                 else
                 {
-                    using (var client = new SshClient(ipAddress, "mobile", "alpine"))
+                    using (var client = new SshClient(ipAddress, MobileUser, MobilePass))
                     {
                         client.Connect();                      
                         var cmd = client.RunCommand(Command);
@@ -86,7 +86,6 @@ namespace PandoraMandora
             }
             catch
             {
-                MessageBox.Show("Error on connecting to ssh");
             }
             Cursor.Current = Cursors.Default;
             return Result;
@@ -141,6 +140,18 @@ namespace PandoraMandora
         public void readIP()
         {
             Cursor.Current = Cursors.WaitCursor;
+            #region Fix Mobile ini
+            var parser = new FileIniDataParser();
+            IniData data = parser.ReadFile("Configuration.ini");
+            if (data["Config"]["mobileUser"] == null || data["Config"]["mobilePass"] == null)
+            {
+                data["Config"]["mobileUser"] = "mobile";
+                parser.WriteFile("Configuration.ini", data);
+
+                data["Config"]["mobilePass"] = "alpine";
+                parser.WriteFile("Configuration.ini", data);
+            }
+            #endregion
             WriteLine("Checking to see if Config file exists...");
             if (!File.Exists(Application.StartupPath + @"/Configuration.ini"))
             {
@@ -149,8 +160,6 @@ namespace PandoraMandora
                 {
                 }
                 WriteLine("Created. Adding Temporary content...");
-                var parser = new FileIniDataParser();
-                IniData data = parser.ReadFile("Configuration.ini");
                 string Temp = "Temp";
                 data["Config"]["IP"] = Temp;
                 parser.WriteFile("Configuration.ini", data);
@@ -161,19 +170,26 @@ namespace PandoraMandora
                 data["Config"]["password"] = "alpine";
                 parser.WriteFile("Configuration.ini", data);
 
-                ipAddress = data["Config"]["IP"];
-                username = data["Config"]["username"];
-                password = data["Config"]["password"];
-                MessageBox.Show("The SSH wont connect as it has no IP address or usernames to work off. So restart the program after changing it.");
-            }
-            else
-            {
-                var parser = new FileIniDataParser();
-                IniData data = parser.ReadFile("Configuration.ini");
+                data["Config"]["mobileUser"] = "mobile";
+                parser.WriteFile("Configuration.ini", data);
+
+                data["Config"]["mobilePass"] = "alpine";
+                parser.WriteFile("Configuration.ini", data);
 
                 ipAddress = data["Config"]["IP"];
                 username = data["Config"]["username"];
                 password = data["Config"]["password"];
+                MobilePass = data["Config"]["mobilePass"];
+                MobileUser = data["Config"]["mobileUser"];
+                MessageBox.Show("The SSH wont connect as it has no IP address or usernames to work off. So restart the program after changing it.");
+            }
+            else
+            {
+                ipAddress = data["Config"]["IP"];
+                username = data["Config"]["username"];
+                password = data["Config"]["password"];
+                MobilePass = data["Config"]["mobilePass"];
+                MobileUser = data["Config"]["mobileUser"];
             }
             Cursor.Current = Cursors.Default;
         }
@@ -214,6 +230,46 @@ namespace PandoraMandora
             string paragraphSeparator = ((char)0x2029).ToString();
 
             return value.Replace("\r\n", string.Empty).Replace("\n", string.Empty).Replace("\r", string.Empty).Replace(lineSeparator, string.Empty).Replace(paragraphSeparator, string.Empty);
+        }
+
+        public string RepeatedResultSSH(string Command, bool Close)
+        {
+            string Result = "";
+            try
+            {
+                using (var client = new SshClient(ipAddress, MobileUser, MobilePass))
+                {
+                    client.Connect();
+                    var cmd = client.RunCommand(Command);
+                    Result = cmd.Result;
+                    if (Close == true)
+                    {
+                        client.Disconnect();
+                    }
+                }
+            }
+            catch
+            {
+            }
+            return Result;
+        }
+
+        public string SongInformation()
+        {
+            string Song = "";
+            try
+            {
+                Song = "Title: " + RepeatedResultSSH("media title", false)
+                    + "Album: " + RepeatedResultSSH("media album", false)
+                    + "Artist: " + RepeatedResultSSH("media artist", false)
+                    + "Duration: " + TimeSpan.FromHours(
+                        Convert.ToDouble(RepeatedResultSSH("media length", true))).ToString("mm\\:ss");
+            }
+            catch
+            {
+                Song = "Error. Could not retrieve data";
+            }
+            return Song;
         }
     }
 }

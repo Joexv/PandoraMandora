@@ -20,10 +20,15 @@ namespace PandoraMandora
         public static string ipAddress;
         public static string password;
         public static string username;
+        public static string MobileUser;
+        public static string MobilePass;
 
         bool ManualMode = false;
 
+        bool ClosingBool = false;
+
         sshHandler madHax = new sshHandler();
+        Form1 frm = new Form1();
 
         public const int HT_CAPTION = 0x2;
         public const int WM_NCLBUTTONDOWN = 0xA1;
@@ -48,11 +53,23 @@ namespace PandoraMandora
             ipAddress = data["Config"]["IP"];
             username = data["Config"]["username"];
             password = data["Config"]["password"];
+            MobilePass = data["Config"]["mobilePass"];
+            MobileUser = data["Config"]["mobileUser"];
 
-            this.BackColor = Color.FromName(data["Config"]["MiniPlayerColor"]);
-            label1.BackColor = Color.FromName(data["Config"]["MiniPlayerColor"]);
-            if (label1.BackColor == Color.FromName("White"))
+            try
             {
+                this.BackColor = Color.FromName(data["Config"]["MiniPlayerColor"]);
+                label1.BackColor = Color.FromName(data["Config"]["MiniPlayerColor"]);
+                if (label1.BackColor == Color.FromName("White"))
+                {
+                    label1.ForeColor = Color.Black;
+                }
+            }
+            catch
+            {
+                MessageBox.Show("There was somethign wrong with the colors set for the mini player. Please try a different color.");
+                this.BackColor = Color.White;
+                label1.BackColor = Color.White;
                 label1.ForeColor = Color.Black;
             }
 
@@ -91,9 +108,9 @@ namespace PandoraMandora
 
         private void button5_Click(object sender, EventArgs e)
         {
+            ClosingBool = true;
             backgroundWorker1.CancelAsync();
-            this.ShowInTaskbar = false;
-            Form1 frm = new Form1();
+            //this.ShowInTaskbar = false;
             frm.Show();
             this.Close();
         }
@@ -113,6 +130,12 @@ namespace PandoraMandora
             madHax.mobileSSH("media next");
             Thread.Sleep(4000);
             label1.Text = "Now Playing" + Environment.NewLine + madHax.resultSSH("media title", false);
+            var parser = new FileIniDataParser();
+            IniData data = parser.ReadFile("Configuration.ini");
+            if (Convert.ToBoolean(data["Config"]["Notifications"]) == true)
+            {
+                frm.ToastNotification();
+            }
         }
 
         private void button8_Click(object sender, EventArgs e)
@@ -125,6 +148,12 @@ namespace PandoraMandora
             madHax.rootSSH($"activator activate libactivator.statusbar.tap.double.left");
             Thread.Sleep(4000);
             label1.Text = "Now Playing" + Environment.NewLine + madHax.resultSSH("media title", false);
+            var parser = new FileIniDataParser();
+            IniData data = parser.ReadFile("Configuration.ini");
+            if (Convert.ToBoolean(data["Config"]["Notifications"]) == true)
+            {
+                frm.ToastNotification();
+            }
         }
 
         private void label1_MouseEnter(object sender, EventArgs e)
@@ -137,15 +166,37 @@ namespace PandoraMandora
             Thread.Sleep(TimeSpan.FromSeconds(12));
         }
 
+
         private void backgroundWorker1_RunWorkerCompleted(object sender, System.ComponentModel.RunWorkerCompletedEventArgs e)
         {
-            label1.Invoke((MethodInvoker)delegate
+            if (ClosingBool == false)
             {
-                label1.Text = "Now Playing" + Environment.NewLine + madHax.resultSSH("media title", false);
-            });
-            if (ManualMode == false)
+                try
+                {
+                    label1.Invoke((MethodInvoker)delegate
+                    {
+                        var parser = new FileIniDataParser();
+                        IniData data = parser.ReadFile("Configuration.ini");
+                        string TempString = label1.Text;
+                        label1.Text = "Now Playing" + Environment.NewLine + madHax.resultSSH("media title", false);
+                        if (label1.Text != TempString && Convert.ToBoolean(data["Config"]["Notifications"]) == true)
+                        {
+                            frm.ToastNotification();
+                        }
+                    });
+                    if (ManualMode == false)
+                    {
+                        backgroundWorker1.RunWorkerAsync();
+                    }
+                }
+                catch
+                {
+
+                }
+            }
+            else
             {
-                backgroundWorker1.RunWorkerAsync();
+                ClosingBool = false;
             }
         }
     }

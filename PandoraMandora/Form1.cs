@@ -9,14 +9,22 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Threading;
 using System.Diagnostics;
+using Windows.Data.Xml.Dom;
+using Windows.UI.Notifications;
+using System.Reflection;
+using System.IO;
+using IniParser;
+using IniParser.Model;
 
 namespace PandoraMandora
 {
     public partial class Form1 : Form
     {
+        static bool Notifications = false;
         sshHandler madHax = new sshHandler();
         int Seconds = 2;
         bool ManualMode = false;
+        bool ClosingBool = false;
 
         public Form1()
         {
@@ -27,6 +35,8 @@ namespace PandoraMandora
         {
             madHax.GUIConsoleWriter();
             madHax.readIP();
+            var parser = new FileIniDataParser();
+            IniData data = parser.ReadFile("Configuration.ini");
 
             #region Station Buttons
 
@@ -57,8 +67,36 @@ namespace PandoraMandora
             #endregion Station Button ToolTips
 
             #endregion Station Buttons
+            #region MiniPlayer Color
+            try
+            {
+                checkBox1.Checked = Convert.ToBoolean(data["Config"]["Notifications"]);
+            }
+            catch
+            {
+                checkBox1.Checked = false;
+            }
 
-            label1.Text = "Now Playing" + Environment.NewLine + madHax.resultSSH("media info", false);
+            foreach (PropertyInfo prop in typeof(Color).GetProperties())
+            {
+                if (prop.PropertyType.FullName == "System.Drawing.Color")
+                    comboBox1.Items.Add(prop.Name);
+            }
+            if (comboBox1.Items.Contains(data["Config"]["MiniPlayerColor"]) == true)
+            {
+                comboBox1.SelectedItem = data["Config"]["MiniPlayerColor"];
+            }
+            else if (comboBox1.Items.Contains(data["Config"]["MiniPlayerColor"]) == true
+               || data["Config"]["MiniPlayerColor"] == ""
+               || data["Config"]["MiniPlayerColor"] == null)
+            {
+                comboBox1.SelectedItem = "White";
+                data["Config"]["MiniPlayerColor"] = "White";
+                parser.WriteFile("Configuration.ini", data);
+            }
+            #endregion
+
+            label1.Text = "Now Playing" + Environment.NewLine + madHax.SongInformation();
             SongTimer.RunWorkerAsync();           
         }
 
@@ -136,7 +174,9 @@ namespace PandoraMandora
 
         private void button14_Click(object sender, EventArgs e)
         {
+            ClosingBool = true;
             SongTimer.CancelAsync();
+            ClosingBool = false;
             this.Hide();
             this.ShowInTaskbar = false;
             Form2 f2 = new Form2();          
@@ -166,7 +206,7 @@ namespace PandoraMandora
         #region Now Playing
         private void label1_Click(object sender, EventArgs e)
         {
-            label1.Text = "Now Playing" + Environment.NewLine + madHax.resultSSH("media info", false);
+            label1.Text = "Now Playing" + Environment.NewLine + madHax.SongInformation();
         }
 
         private void SongTimer_DoWork(object sender, DoWorkEventArgs e)
@@ -176,13 +216,68 @@ namespace PandoraMandora
 
         private void SongTimer_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            label1.Invoke((MethodInvoker)delegate
+            if (ClosingBool == false)
             {
-                label1.Text = "Now Playing" + Environment.NewLine + madHax.resultSSH("media info", false);
-            });
-            if (ManualMode == false)
+                try
+                {
+                    label1.Invoke((MethodInvoker)delegate
+                    {
+                        string TempString = label1.Text;
+                        label1.Text = "Now Playing" + Environment.NewLine + madHax.SongInformation();
+                        if (label1.Text != TempString && checkBox1.Checked == true)
+                        {
+                            ToastNotification();
+                        }
+                    });
+                    if (ManualMode == false)
+                    {
+                        SongTimer.RunWorkerAsync();
+                    }
+                }
+                catch{}
+            }
+        }
+        private const String APP_ID = "Pandora Mandora";
+
+        public void ToastNotification()
+        {
+            string Title = madHax.RepeatedResultSSH("media title", false);
+            string Artist = madHax.RepeatedResultSSH("media artist", false);
+            string Album = madHax.RepeatedResultSSH("media album", true);
+            // Get a toast XML template
+            XmlDocument toastXml = ToastNotificationManager.GetTemplateContent(ToastTemplateType.ToastImageAndText04);
+
+            // Fill in the text elements
+            XmlNodeList stringElements = toastXml.GetElementsByTagName("text");
+            stringElements[0].AppendChild(toastXml.CreateTextNode("Title: " + Title));
+            //Path.GetFileNameWithoutExtension(label1.Text)
+            stringElements[1].AppendChild(toastXml.CreateTextNode("Album: " + Album));
+            stringElements[2].AppendChild(toastXml.CreateTextNode("Artist: " + Artist));
+
+            // Specify the absolute path to an image
+            //MessageBox.Show();
+            XmlNodeList imageElements = toastXml.GetElementsByTagName("image");
+            Extract("PandoraMandora", Application.StartupPath, "Images", "icon.png");
+            imageElements[0].Attributes.GetNamedItem("src").NodeValue = Application.StartupPath + @"\icon.png";
+
+            // Create the toast and attach event listeners
+            ToastNotification toast = new ToastNotification(toastXml);
+
+            // Show the toast. Be sure to specify the AppUserModelId on your application's shortcut!
+            ToastNotificationManager.CreateToastNotifier(APP_ID).Show(toast);
+        }
+
+        private static void Extract(string nameSpace, string outDirectory, string internalFilePath, string resourceName)
+        {
+            if (!File.Exists(outDirectory + resourceName))
             {
-                SongTimer.RunWorkerAsync();
+                Assembly assembly = Assembly.GetCallingAssembly();
+
+                using (Stream s = assembly.GetManifestResourceStream(nameSpace + "." + (internalFilePath == "" ? "" : internalFilePath + ".") + resourceName))
+                using (BinaryReader r = new BinaryReader(s))
+                using (FileStream fs = new FileStream(outDirectory + "\\" + resourceName, FileMode.OpenOrCreate))
+                using (BinaryWriter w = new BinaryWriter(fs))
+                    w.Write(r.ReadBytes((int)s.Length));
             }
         }
 
@@ -236,18 +331,29 @@ namespace PandoraMandora
             toolStripStatusLabel1.Text = "Skipping song...";
             madHax.mobileSSH("media next");
             Thread.Sleep(4000);
-            string tempString2 = "Now Playing" + Environment.NewLine + madHax.resultSSH("media info", false);
+            string tempString2 = "Now Playing" + Environment.NewLine + madHax.SongInformation();
             if (tempString == tempString2)
             {
+                Seconds = 2;
+                toolStripStatusLabel1.Text = "Loading...";
                 Thread.Sleep(2000);
-                tempString2 = "Now Playing" + Environment.NewLine + madHax.resultSSH("media info", false);
+                tempString2 = "Now Playing" + Environment.NewLine + madHax.SongInformation();
                 if (tempString == tempString2)
                 {
                     Seconds = 2;
                     toolStripStatusLabel1.Text = "Loading times seem to be really bad right now!";
                 }
             }
-            label1.Text = tempString2;
+            else
+            {
+                label1.Text = tempString2;
+                var parser = new FileIniDataParser();
+                IniData data = parser.ReadFile("Configuration.ini");
+                if (Convert.ToBoolean(data["Config"]["Notifications"]) == true)
+                {
+                    ToastNotification();
+                }
+            }
             ManualMode = false;
         }
 
@@ -259,18 +365,29 @@ namespace PandoraMandora
             toolStripStatusLabel1.Text = "Hated";
             madHax.rootSSH($"activator activate libactivator.statusbar.tap.double.left");
             Thread.Sleep(4000);
-            string tempString2 = "Now Playing" + Environment.NewLine + madHax.resultSSH("media info", false);
+            string tempString2 = "Now Playing" + Environment.NewLine + madHax.SongInformation();
             if (tempString == tempString2)
             {
+                Seconds = 2;
+                toolStripStatusLabel1.Text = "Loading....";
                 Thread.Sleep(2000);
-                tempString2 = "Now Playing" + Environment.NewLine + madHax.resultSSH("media info", false);
+                tempString2 = "Now Playing" + Environment.NewLine + madHax.SongInformation();
                 if (tempString == tempString2)
                 {
                     Seconds = 2;
                     toolStripStatusLabel1.Text = "Loading times seem to be really bad right now!";
                 }
             }
-            label1.Text = tempString2;
+            else
+            {
+                var parser = new FileIniDataParser();
+                IniData data = parser.ReadFile("Configuration.ini");
+                if (Convert.ToBoolean(data["Config"]["Notifications"]) == true)
+                {
+                    ToastNotification();
+                }
+                label1.Text = tempString2;
+            }
             ManualMode = false;
         }
 
@@ -337,6 +454,36 @@ namespace PandoraMandora
         private void toolStripStatusLabel1_Click(object sender, EventArgs e)
         {
 
+        }
+
+        private void checkBox1_CheckedChanged(object sender, EventArgs e)
+        {
+            if (checkBox1.Checked == true)
+            {
+                Notifications = true;
+            }
+            else if (checkBox1.Checked == false)
+            {
+                Notifications = false;
+            }
+            var parser = new FileIniDataParser();
+            IniData data = parser.ReadFile("Configuration.ini");
+            data["Config"]["Notifications"] = Convert.ToString(Notifications);
+            parser.WriteFile("Configuration.ini", data);
+        }
+
+        private void button17_Click(object sender, EventArgs e)
+        {
+            ToastNotification();
+        }
+
+        private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            var parser = new FileIniDataParser();
+            IniData data = parser.ReadFile("Configuration.ini");
+            string ColorString = comboBox1.SelectedItem.ToString();
+            data["Config"]["MiniPlayerColor"] = ColorString;
+            parser.WriteFile("Configuration.ini", data);
         }
     }
 }
